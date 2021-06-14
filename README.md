@@ -1,4 +1,4 @@
-# Take Photo in Angular11
+# Take Photo in Angular (version 11)
 
 In this project i used MediaDevices.getUserMedia() to take photo by device camera in an Angular project.
 The MediaDevices.getUserMedia() method prompts the user for permission to use a media input which produces a MediaStream with tracks containing the requested types of media. 
