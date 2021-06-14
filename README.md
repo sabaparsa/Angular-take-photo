@@ -1,29 +1,29 @@
-# Record video in Angular11
+# Take Photo in Angular11
 
-In this project i used MediaDevices.getUserMedia() to record video in Angular projects.
-The MediaDevices.getUserMedia() method prompts the user for permission to use a media input which produces a MediaStream with tracks containing the requested types of media. That stream can include, for example, a video track (produced by either a hardware or virtual video source such as a camera, video recording device, screen sharing service, and so forth), an audio track (similarly, produced by a physical or virtual audio source like a microphone, A/D converter, or the like), and possibly other track types.
-
-It returns a Promise that resolves to a MediaStream object. If the user denies permission, or matching media is not available, then the promise is rejected with NotAllowedError or NotFoundError respectively.
+In this project i used MediaDevices.getUserMedia() to take photo by device camera in an Angular project.
+The MediaDevices.getUserMedia() method prompts the user for permission to use a media input which produces a MediaStream with tracks containing the requested types of media. 
 
 ## HTML Template
 ```
 <div class="record-video-btn">
-  <button type="button" (click)="recordHandlre()" [style.background-color]="recordButtonColor">{{ videoButtonTitle
-    }}</button>
+  <button *ngIf="!isCapturingImage" type="button" (click)="onStartImageCamera()">{{ cameraButtonTitle }}</button>
+  <button *ngIf="isCapturingImage" type="button"  (click)="capturePhoto()" >Take Photo</button>
 </div>
 
 <div class="record-video-container">
-  <video [hidden]="!isCapturingVideo" id="preview" autoplay muted #preview muted="muted" class="video"></video>
-  <video [hidden]="isCapturingVideo" controls #recording class="video"></video>
+  <video #photo class="photo-camera" autoplay [hidden]="!isCapturingImage"></video>
+  <canvas #canvas class="photo-camera" [hidden]="isCapturingImage"></canvas>
 </div>
 ```
 
-The first video tag is the preview of the recording video and the second one is used to show recorded video.
+The first button will start the camera at the first time.it will ask user to allow device camera to record.
+If the user allow then the camera will start.
+By clicking on "Take Photo" the photo will be saved.you can also click on "Take photo Again" if you like.
 
 ## Ts file
 ```
 import { Component, ElementRef, Renderer2, ViewChild } from '@angular/core';
-declare var MediaRecorder: any;
+
 
 @Component({
   selector: 'app-root',
@@ -32,114 +32,106 @@ declare var MediaRecorder: any;
 })
 
 export class AppComponent {
-  
-  @ViewChild('preview', {static: false}) public previewElement!: ElementRef;
-  @ViewChild('recording', {static: false}) public recordingElement!: ElementRef;
-  public videoButtonTitle: string = "Start Recording";
-  public isCapturingVideo: boolean = false;
-  public videoContraints = {
-    audio: true,
-    video: { facingMode: "user" }
-  }
-  public isVideoTaken: boolean = false;
-  public videoFile!: File;
-  public recordButtonColor: string = "blueviolet";
 
+  @ViewChild('canvas') public canvas!: ElementRef;
+  @ViewChild('photo') public photoElement!: ElementRef;
+  public isCapturingImage: boolean = false;
+  public imageWidth = 0;
+  public imageHeight = 0;
+  public image: any;
+  public imageFile: any;
+  public photoStream: any;
+  public isPhotoTaken: boolean = false;
+  public cameraButtonTitle: string = "Start the Camera";
+  public photoContraints: any = {
+    video: {
+      facingMode: "user",
+    }
+  }
   constructor(
     private renderer: Renderer2,
-
   ) { 
      
   }
 
-  recordHandlre(): void {
+  capturePhoto(): void {
+    this.renderer.setProperty(this.canvas.nativeElement, 'width', this.imageWidth);
+    this.renderer.setProperty(this.canvas.nativeElement, 'height', this.imageHeight);
+    this.canvas.nativeElement.getContext('2d').drawImage(this.photoElement.nativeElement, 0, 0);
+    this.image = this.canvas.nativeElement.toDataURL("image/jpg").replace("image/jpg", "image/octet-stream");  // here is the most important part because if you dont replace you will get a DOM 18 exception.
+    // convert base64 string to file
+    this.imageFile = this.dataURLtoFile(this.image, "user-image.jpg");
+    
+    if (this.photoStream != null) {
+      this.isPhotoTaken = true;
+      this.photoStream.getTracks().forEach(function(track: any) {
+        track.stop();
+      });
+      this.cameraButtonTitle = "Take photo Again"
 
-    if (this.videoButtonTitle === "Start Recording" || this.videoButtonTitle === "Record Again") {
-      this.isCapturingVideo = true;
-      this.recordButtonColor = "red";
-      this.startRecording();
+    }
+    this.isCapturingImage = false;
 
-    } else if (this.videoButtonTitle === "Stop Recording") {
-      this.recordButtonColor = "blueviolet";
-      this.stop(this.previewElement.nativeElement.srcObject);
+  }
+
+  dataURLtoFile(dataurl: any, filename: string): any {
+
+    var arr = dataurl.split(','),
+      mime = arr[0].match(/:(.*?);/)[1],
+      bstr = atob(arr[1]),
+      n = bstr.length,
+      u8arr = new Uint8Array(n);
+
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
     }
 
+    return new File([u8arr], filename, { type: "image/png" });
   }
 
-  startRecording(): void {
-    navigator.mediaDevices.getUserMedia(this.videoContraints).then((stream) => { this.bindStream(stream) })
-      .then(() => this.startRecordingVideo(this.previewElement.nativeElement.captureStream()))
-      .then((recordedChunks) => { this.recordChunks(recordedChunks) });
+  onStartImageCamera(): void {
+    this.isCapturingImage = true;
+    this.startTakingImage();
   }
 
-  bindStream(stream: any) {
-    this.previewElement.nativeElement.muted = true;
-    this.renderer.setProperty(this.previewElement.nativeElement, 'srcObject', stream);
-    this.previewElement.nativeElement.captureStream =
-      this.previewElement.nativeElement.captureStream || this.previewElement.nativeElement.mozCaptureStream;
-    return new Promise((resolve) => (this.previewElement.nativeElement.onplaying = resolve));
-
+  startTakingImage(): void {
+    if (!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      navigator.mediaDevices.getUserMedia(this.photoContraints).then(this.attachPhoto.bind(this)).catch(this.handlePhotoError);
+    } else {
+      alert('Sorry, camera not available.');
+    }
   }
 
-  startRecordingVideo(stream: any) {
-
-    this.videoButtonTitle = "Stop Recording";
-    let recorder = new MediaRecorder(stream);
-    let data: any = [];
-
-    recorder.ondataavailable = (event: any) => data.push(event.data);
-    recorder.start();
-
-    let stopped = new Promise((resolve, reject) => {
-      recorder.onstop = resolve;
-      recorder.onerror = (event: any) => reject(event);
+  attachPhoto(stream: any): void {
+    this.renderer.setProperty(this.photoElement.nativeElement, 'srcObject', stream);
+    this.renderer.listen(this.photoElement.nativeElement, 'play', (event) => {
+      this.imageHeight = this.photoElement.nativeElement.videoHeight;
+      this.imageWidth = this.photoElement.nativeElement.videoWidth;
     });
-
-    let recorded =
-      () => recorder.state == "recording" && recorder.stop();
-
-    this.isVideoTaken = true;
-    return Promise.all([stopped, recorded]).then(() => data);
+    this.photoStream = stream
   }
 
-  recordChunks(recordedChunks: any) {
-    let recordedBlob = new Blob(recordedChunks, { type: "video/webm" });
-    this.renderer.setProperty(this.recordingElement.nativeElement, 'src', URL.createObjectURL(recordedBlob));
-    this.videoFile = this.blobToFile(recordedBlob, "user-video.mp4");
-  }
-
-  blobToFile = (theBlob: Blob, fileName: string): File => {
-    //create a file
-    var b: any = theBlob;
-    b.lastModifiedDate = new Date();
-    b.name = fileName;
-
-    return <File>theBlob;
-  }
-
-
-  stop(stream: any) {
-
-    stream.getTracks().forEach(function(track: any) {
-      track.stop();
-    });
-    this.videoButtonTitle = "Record Again";
-    this.isCapturingVideo = false;
+  handlePhotoError(error: any): void {
+    console.log('Error: ', error);
   }
 }
 
+
 ```
 
-## Convert blob to file 
+## Display the photo
+After taking photo we will draw the image in canvas 
 ```
-  blobToFile = (theBlob: Blob, fileName: string): File => {
-    //create a file from blob
-    var b: any = theBlob;
-    b.lastModifiedDate = new Date();
-    b.name = fileName;
-
-    return <File>theBlob;
-  }
+  <canvas #canvas class="photo-camera" [hidden]="isCapturingImage"></canvas>
 ```
-In case you want to convert the recorded blob to file 
+Ts file:
+```
+    this.canvas.nativeElement.getContext('2d').drawImage(this.photoElement.nativeElement, 0, 0);
+```
+## Convert it to a file 
+```
+    this.image = this.canvas.nativeElement.toDataURL("image/jpg").replace("image/jpg", "image/octet-stream");
+    
+    // convert base64 string to file
+    this.imageFile = this.dataURLtoFile(this.image, "user-image.jpg");```
 
