@@ -1,8 +1,8 @@
 <router-outlet></router-outlet>
 <h1>Take Photo in Angular</h1>
 <div class="record-video-btn">
-  <button *ngIf="isCapturingImage" type="button"  (click)="capturePhoto()" >Take Photo</button>
   <button *ngIf="!isCapturingImage" type="button" (click)="onStartImageCamera()">{{ cameraButtonTitle }}</button>
+  <button *ngIf="isCapturingImage" type="button"  (click)="capturePhoto()" >Take Photo</button>
 </div>
 
 <div class="record-video-container">
