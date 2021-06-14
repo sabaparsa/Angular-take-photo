@@ -124,7 +124,7 @@ After taking photo we will draw the image in canvas
 ```
   <canvas #canvas class="photo-camera" [hidden]="isCapturingImage"></canvas>
 ```
-ts file:
+Ts file:
 ```
     this.canvas.nativeElement.getContext('2d').drawImage(this.photoElement.nativeElement, 0, 0);
 ```
